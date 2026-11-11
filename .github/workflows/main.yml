@@ -1,0 +1,633 @@
+/*
+ * Forlent Sky v5.1 "Galaxy A07 Optimized"
+ * Professional AFK Farming System for Fortnite Mobile
+ * Target: Samsung Galaxy A07 4G (720x1600)
+ */
+
+"ui";
+
+// ==================== CONFIGURAÇÕES GLOBAIS ====================
+const CONFIG = {
+    discordWebhook: "COLOQUE_SUA_URL_WEBHOOK_AQUI",
+    botName: "Forlent Sky 🏴‍☠️",
+    maxPartidas: 0, // 0 = Infinito
+    delayNovaPartida: 40, // Segundos
+    checkSquadInterval: 10, // Segundos
+    antiAfkMicroInterval: 4000, // 4s
+    antiAfkMacroInterval: 120000, // 2min
+    sprintDuration: 20000, // 20 SEGUNDOS de Sprint
+    timerModo: false,
+    timerDuracao: 600, // Segundos
+    otimizacao: true,
+    itensMonitorados: [
+        { nome: "Pirate Token", arquivo: "pirate_token.png", url: "https://fortnitecontent.com/content/fortnite/media/ugc/0/0/0/0/0/pirate_token_icon.png" },
+        { nome: "V-Bucks", arquivo: "vbucks.png", url: "https://fortnitecontent.com/content/fortnite/media/ugc/0/0/0/0/0/vbucks_icon.png" },
+        { nome: "Storm Skin", arquivo: "storm_skin.png", url: "https://fortnitecontent.com/content/fortnite/media/ugc/0/0/0/0/0/storm_skin_icon.png" },
+        { nome: "Black Dog", arquivo: "black_dog.png", url: "https://fortnitecontent.com/content/fortnite/media/ugc/0/0/0/0/0/black_dog_icon.png" },
+        { nome: "Punk Guitar", arquivo: "punk_guitar.png", url: "https://fortnitecontent.com/content/fortnite/media/ugc/0/0/0/0/0/punk_guitar_icon.png" }
+    ]
+};
+
+const stats = {
+    partidas: 0,
+    baUs: 0,
+    itens: {},
+    ultimoItem: "Nenhum",
+    inicioSessao: 0
+};
+
+const estado = {
+    rodando: false,
+    emPartida: false,
+    squadMorto: false,
+    inicioPartida: 0,
+    ultimoMicroAfk: 0,
+    ultimoMacroAfk: 0,
+    ultimoCheckSquad: 0,
+    modoEscondido: false
+};
+
+// Coordenadas Padrão para Samsung Galaxy A07 4G (720x1600)
+const UI = {
+    xPlay: 360, yPlay: 1100,
+    xSair: 600, ySair: 1400,
+    xConfirmar: 600, yConfirmar: 1500,
+    xMenuPausa: 50, yMenuPausa: 80,
+    xSquadSlot: 150, ySquadSlot: 120,
+    xJoystickX: 200, yJoystickY: 1300,
+    xAtaque: 550, yAtaque: 1400,
+    xPulo: 450, yPulo: 1450,
+    xCorrer: 600, yCorrer: 1300,
+    lootRegion: [50, 1100, 600, 400] 
+};
+
+// ==================== INTERFACE PRINCIPAL (SETUP) ====================
+activity.layout(
+    <frame gravity="center" backgroundColor="#121212">
+        <vertical padding="15" width="fill_parent">
+            <horizontal gravity="center" padding="10">
+                <text text="🏴‍☠️ Forlent Sky" textColor="#ffffff" textSize="22sp" textStyle="bold" />
+            </horizontal>
+            <horizontal gravity="center">
+                <text text="Galaxy A07 Optimized v5.1" textColor="#4ecca3" textSize="12sp" />
+            </horizontal>
+
+            <scrollbar>
+                <vertical padding="10">
+                    <card>
+                        <card content="⚙️ Configurações">
+                            <vertical>
+                                <horizontal gravity="center">
+                                    <text text="Partidas (0=Inf):" textColor="#ffffff" width="wrap_content" />
+                                    <input id="inputPartidas" hint="0" textSize="14sp" width="100dp" />
+                                </horizontal>
+                                <horizontal gravity="center">
+                                    <checkbox id="chkTimer" text="Timer Mod" textColor="#ffffff" />
+                                    <input id="inputTimer" hint="600" textSize="14sp" width="80dp" enabled="false" />
+                                </horizontal>
+                                <horizontal gravity="center">
+                                    <checkbox id="chkOpt" text="Otimizar CPU/Net" textColor="#ffffff" checked="true" />
+                                </horizontal>
+                                <horizontal gravity="center">
+                                    <text text="Webhook URL:" textColor="#ffffff" width="wrap_content" />
+                                    <input id="inputWebhook" hint="https://discord.com/api/webhooks/..." textSize="10sp" width="fill_parent" />
+                                </horizontal>
+                            </vertical>
+                        </card>
+                    </card>
+
+                    <card>
+                        <card content="🎯 Calibração de Tela">
+                            <vertical>
+                                <text text="Ajusta as coordenadas para a sua tela." textColor="#a0a0b0" textSize="10sp" />
+                                <button id="btnCalibrate" text="🎯 Iniciar Calibração" textColor="#ffffff" width="fill_parent" />
+                            </vertical>
+                        </card>
+                    </card>
+
+                    <card>
+                        <card content="🚀 Iniciar Sistema">
+                            <vertical>
+                                <text text="O GUI principal será minimizado e um Overlay flutuante aparecerá." textColor="#a0a0b0" textSize="10sp" />
+                                <button id="btnStart" text="▶ INICIAR FORLENT SKY" textColor="#ffffff" width="fill_parent" />
+                            </vertical>
+                        </card>
+                    </card>
+                </vertical>
+            </scrollbar>
+        </vertical>
+    </frame>
+);
+
+// Eventos do GUI Principal
+ui.chkTimer.on("check", () => {
+    ui.inputTimer.setEnabled(!ui.chkTimer.isChecked());
+});
+
+ui.btnCalibrate.on("click", () => {
+    iniciarCalibracao();
+});
+
+ui.btnStart.on("click", () => {
+    if (estado.rodando) return;
+    
+    CONFIG.maxPartidas = parseInt(ui.inputPartidas.getText()) || 0;
+    CONFIG.timerModo = ui.chkTimer.isChecked();
+    CONFIG.timerDuracao = parseInt(ui.inputTimer.getText()) || 600;
+    CONFIG.discordWebhook = ui.inputWebhook.getText();
+    CONFIG.otimizacao = ui.chkOpt.isChecked();
+    
+    stats.inicioSessao = Date.now();
+    estado.rodando = true;
+    
+    startFloatingGUI();
+    threads.start(farmLoop);
+    activity.finish();
+});
+
+// ==================== SISTEMA DE CALIBRAÇÃO ====================
+function iniciarCalibracao() {
+    toast.log("🎯 Calibração Iniciada.");
+    
+    // 1. Calibrar Botão Play
+    toast.log("Toque no botão PLAY do Fortnite agora...");
+    sleep(3000);
+    const playCoords = capturarProximoToque();
+    if (playCoords) {
+        UI.xPlay = playCoords.x;
+        UI.yPlay = playCoords.y;
+        toast.log("✅ Play Calibrado: " + UI.xPlay + "," + UI.yPlay);
+    }
+
+    // 2. Calibrar Botão Sair
+    toast.log("Abra o menu e toque em SAIR...");
+    sleep(3000);
+    const sairCoords = capturarProximoToque();
+    if (sairCoords) {
+        UI.xSair = sairCoords.x;
+        UI.ySair = sairCoords.y;
+        toast.log("✅ Sair Calibrado.");
+    }
+    
+    // 3. Calibrar Joystick
+    toast.log("Toque no JOYSTICK...");
+    sleep(3000);
+    const joyCoords = capturarProximoToque();
+    if (joyCoords) {
+        UI.xJoystickX = joyCoords.x;
+        UI.yJoystickY = joyCoords.y;
+        toast.log("✅ Joystick Calibrado.");
+    }
+
+    toast.log("🎯 Calibração Concluída!");
+}
+
+function capturarProximoToque() {
+    let coord = null;
+    const obs = events.observeKey();
+    const obsTouch = events.observeTouch();
+    const touch = wait.forTouch();
+    if (touch) {
+        coord = { x: touch.x, y: touch.y };
+    }
+    events.unobserve(obs);
+    events.unobserve(obsTouch);
+    return coord;
+}
+
+// ==================== GUI FLUTUANTE (OVERLAY) ====================
+function startFloatingGUI() {
+    const floatLayout = <frame gravity="top|right" width="wrap_content" height="wrap_content">
+        <vertical padding="10" backgroundColor="#222222" borderColor="#4ecca3" borderWidth="2dp" borderRadius="10dp">
+            <horizontal gravity="center">
+                <text text="🏴‍☠️ Forlent Sky" textColor="#4ecca3" textSize="12sp" textStyle="bold" />
+            </horizontal>
+            <horizontal gravity="center">
+                <text text="Partidas: " textColor="#ffffff" textSize="10sp" />
+                <text id="fLblPartidas" text="0" textColor="#4ecca3" textSize="10sp" textStyle="bold" />
+            </horizontal>
+            <horizontal gravity="center">
+                <text text="Baús: " textColor="#ffffff" textSize="10sp" />
+                <text id="fLblBaUs" text="0" textColor="#f1c40f" textSize="10sp" textStyle="bold" />
+            </horizontal>
+            <horizontal gravity="center">
+                <text text="Tempo: " textColor="#ffffff" textSize="10sp" />
+                <text id="fLblTempo" text="00:00" textColor="#e74c3c" textSize="10sp" textStyle="bold" />
+            </horizontal>
+            <horizontal gravity="center">
+                <text text="Último: " textColor="#ffffff" textSize="10sp" />
+                <text id="fLblItem" text="Nenhum" textColor="#ffffff" textSize="10sp" textStyle="bold" />
+            </horizontal>
+            <horizontal gravity="center" padding="5">
+                <button id="fBtnOpt" text="⚡" textColor="#ffffff" width="40dp" height="40dp" />
+                <button id="fBtnStop" text="⏹" textColor="#ffffff" width="40dp" height="40dp" />
+            </horizontal>
+        </vertical>
+    </frame>;
+
+    floaty.rawLayout(floatLayout, {
+        floatRadius: 20,
+        layout: {
+            gravity: "top|right",
+            x: 20,
+            y: 100
+        }
+    });
+
+    const fLblPartidas = floatLayout.findInstance("fLblPartidas");
+    const fLblBaUs = floatLayout.findInstance("fLblBaUs");
+    const fLblTempo = floatLayout.findInstance("fLblTempo");
+    const fLblItem = floatLayout.findInstance("fLblItem");
+    const fBtnOpt = floatLayout.findInstance("fBtnOpt");
+    const fBtnStop = floatLayout.findInstance("fBtnStop");
+
+    setInterval(() => {
+        if (!estado.rodando) return;
+        fLblPartidas.setText(stats.partidas.toString());
+        fLblBaUs.setText(stats.baUs.toString());
+        fLblItem.setText(stats.ultimoItem);
+        
+        const elapsed = Math.floor((Date.now() - stats.inicioSessao) / 1000);
+        const mins = Math.floor(elapsed / 60);
+        const secs = elapsed % 60;
+        fLblTempo.setText(`${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
+    }, 1000);
+
+    fBtnOpt.on("click", () => {
+        aplicarOtimizacoes();
+    });
+
+    fBtnStop.on("click", () => {
+        estado.rodando = false;
+        floaty.closeAll();
+    });
+}
+
+// ==================== OTIMIZAÇÃO DE SISTEMA ====================
+function aplicarOtimizacoes() {
+    toast.log("⚡ Otimizando Sistema...");
+    if (device.isRoot()) {
+        exec("echo 3 > /proc/sys/vm/drop_caches");
+        exec("am force-stop com.android.vending");
+    }
+    exec("settings put global window_animation_scale 0.5");
+    exec("settings put global transition_animation_scale 0.5");
+    exec("settings put global animator_duration_scale 0.5");
+    exec("cmd wifi set-wifi-power-save false");
+    toast.log("✅ Otimização Concluída.");
+}
+
+// ==================== LÓGICA DE FARMING ====================
+function farmLoop() {
+    while (estado.rodando) {
+        stats.partidas++;
+        log(`🎮 Iniciando Partida #${stats.partidas}...`);
+        sendDiscordEmbed("🎮 **Nova Partida Iniciada**", `Partida #${stats.partidas}\nModo: ${CONFIG.maxPartidas === 0 ? "Infinito" : stats.partidas + "/" + CONFIG.maxPartidas}`, "3498db", null);
+        
+        // 1. Tentar Entrar na Partida (Clicar em Play)
+        log("🕹️ Clicando em Play...");
+        click(UI.xPlay, UI.yPlay);
+        sleep(10000); // Espera de Carregamento
+        
+        estado.emPartida = true;
+        estado.inicioPartida = Date.now();
+        estado.ultimoMicroAfk = Date.now();
+        estado.ultimoMacroAfk = Date.now();
+        estado.ultimoCheckSquad = Date.now();
+        
+        while (estado.rodando &&        estado.emPartida) {
+            
+            // 1. Anti-AFK Micro (Movimentos suaves no Joystick)
+            if (Date.now() - estado.ultimoMicroAfk > CONFIG.antiAfkMicroInterval) {
+                fazerAntiAfkMicro();
+                estado.ultimoMicroAfk = Date.now();
+            }
+
+            // 2. Anti-AFK Macro (Atirar, Pular, Sprint 20s)
+            if (Date.now() - estado.ultimoMacroAfk > CONFIG.antiAfkMacroInterval) {
+                fazerAntiAfkMacro();
+                estado.ultimoMacroAfk = Date.now();
+            }
+
+            // 3. Verificação de Squad e Itens (A cada 10s)
+            if (Date.now() - estado.ultimoCheckSquad > (CONFIG.checkSquadInterval * 1000)) {
+                verificarSquadEItens();
+                estado.ultimoCheckSquad = Date.now();
+            }
+
+            // 4. Verificação de Timer
+            if (CONFIG.timerModo) {
+                const elapsed = (Date.now() - estado.inicioPartida) / 1000;
+                if (elapsed >= CONFIG.timerDuracao) {
+                    log("⏱️ Timer esgotado. Saindo da partida.");
+                    sendDiscordEmbed("⏱️ **Timer Esgotado**", "Saindo da partida e reiniciando ciclo.", "f39c12", null);
+                    sairDaPartida();
+                    break;
+                }
+            }
+
+            // 5. Verificação de Limite de Partidas
+            if (CONFIG.maxPartidas > 0 && stats.partidas >= CONFIG.maxPartidas) {
+                log("🛑 Limite de partidas atingido.");
+                sendDiscordEmbed("🛑 **Sessão Finalizada**", `Total de partidas: ${stats.partidas}`, "27ae60", null);
+                estado.rodando = false;
+                break;
+            }
+
+            sleep(500); // Loop rápido para responsividade
+        }
+
+        // Pós-Partida
+        if (estado.rodando) {
+            log(`⏳ Aguardando ${CONFIG.delayNovaPartida}s para próxima partida...`);
+            sleep(CONFIG.delayNovaPartida * 1000);
+        }
+    }
+    floaty.closeAll(); // Fecha o overlay ao parar
+}
+
+// ==================== FUNÇÕES DE MOVIMENTO (ANTI-AFK) ====================
+
+function fazerAntiAfkMicro() {
+    // Movimentos aleatórios curtos no Joystick (Bézier simplificado)
+    const randX = random(-40, 40);
+    const randY = random(-40, 40);
+    
+    // Alterna o modo "Cave Dweller" (Frente/Trás) a cada ciclo
+    if (Math.random() > 0.5) {
+        estado.modoEscondido = !estado.modoEscondido;
+    }
+
+    // Define o vetor de movimento baseado no modo
+    let dx = randX;
+    let dy = randY;
+    
+    if (estado.modoEscondido) {
+        // Modo Fuga: Tende a mover para trás/esquerda
+        dy += 20; 
+        dx -= 10;
+    } else {
+        // Modo Exploração: Tende a mover para frente/direita
+        dy -= 20;
+        dx += 10;
+    }
+
+    // Cria uma lista de pontos para simular um gesto curvo (Bézier)
+    const startX = UI.xJoystickX;
+    const startY = UI.yJoystickY;
+    const endX = startX + dx;
+    const endY = startY + dy;
+    
+    // Pontos intermediários para suavizar o movimento
+    const points = [
+        [startX, startY],
+        [startX + (dx * 0.3), startY + (dy * 0.5)], // Ponto de controle 1
+        [startX + (dx * 0.7), startY + (dy * 0.8)], // Ponto de controle 2
+        [endX, endY]
+    ];
+
+    // Executa o gesto com duração aleatória (200-400ms) para parecer humano
+    touchGesture(points, random(200, 400));
+}
+
+function fazerAntiAfkMacro() {
+    log("💥 Ação Macro: Atirar, Pular e Sprint (20s)");
+    toast.log("🔫 Atirando e Pulando");
+    
+    // 1. Atirar 2 vezes (Rajada curta)
+    click(UI.xAtaque, UI.yAtaque);
+    sleep(150);
+    click(UI.xAtaque, UI.yAtaque);
+    
+    // 2. Pular (Evasão)
+    sleep(300);
+    click(UI.xPulo, UI.yPulo);
+    
+    // 3. Sprint Extremo (20 Segundos)
+    // Segura o botão de correr por 20 segundos
+    // Usamos touchGesture com um único ponto e duração longa para simular "segurar"
+    const sprintPoints = [
+        [UI.xCorrer, UI.yCorrer]
+    ];
+    touchGesture(sprintPoints, CONFIG.sprintDuration);
+    
+    log("🏃 Sprint de 20s concluído.");
+}
+
+// ==================== DETECÇÃO DE SQUAD E ITENS ====================
+
+function verificarSquadEItens() {
+    // 1. Verificar se o Squad está vivo
+    // Lógica: Verifica a cor/estado do slot do squad
+    // Para robustez, usamos Image Matching se a imagem "squad_morto.png" existir
+    const snapshot = screen.snapshot();
+    
+    // Verificação de Itens de Baú
+    for (const item of CONFIG.itensMonitorados) {
+        try {
+            // Tenta carregar a imagem local do item
+            const imgPath = files.join(files.cwd(), "assets", item.arquivo);
+            if (files.exists(imgPath)) {
+                const imgItem = images.read(imgPath);
+                // Procura a imagem na região de loot
+                const found = images.findImage(snapshot, imgItem, {
+                    region: UI.lootRegion,
+                    threshold: 0.85
+                });
+                
+                if (found) {
+                    if (stats.ultimoItem !== item.nome) {
+                        stats.ultimoItem = item.nome;
+                        stats.baUs++;
+                        stats.itens[item.nome] = (stats.itens[item                            ? stats.itens[item.nome] : 0) + 1;
+                        
+                        log(`📦 Item Detectado: ${item.nome}`);
+                        toast.log(`📦 ${item.nome}!`);
+                        
+                        // Envia notificação profissional para o Discord
+                        sendDiscordEmbed(
+                            `📦 **NOVO ITEM: ${item.nome}!**`,
+                            `**Squad Coletou:**\n• **Item:** ${item.nome}\n• **Total de Baús:** ${stats.baUs}\n• **Partidas:** ${stats.partidas}`,
+                            "f1c40f",
+                            item.url
+                        );
+                    }
+                }
+            }
+        } catch (e) {
+            console.log("Erro ao detectar item " + item.nome + ": " + e);
+        }
+    }
+
+    // Verificação de Morte do Squad (Heurística Simples)
+    // Se o jogador estiver morto, o avatar no slot do squad geralmente fica cinza/escuro ou aparece um "X".
+    // Como não temos OCR de texto confiável para "Morto", usamos uma verificação de cor na região do slot.
+    // Se você tiver uma imagem exata do seu avatar morto, use images.findImage.
+    const squadRegionColor = colors.pixel(snapshot, UI.xSquadSlot, UI.ySquadSlot);
+    
+    // Heurística: Se a cor for muito escura (perto de 0x000000) ou cinza, pode estar morto.
+    // Ajuste este valor conforme o seu tema de HUD.
+    const brightness = (squadRegionColor[0] + squadRegionColor[1] + squadRegionColor[2]) / 3;
+    
+    if (brightness < 50 && !estado.squadMorto) {
+        estado.squadMorto = true;
+        log("💀 Squad Morto Detectado! Saindo da partida.");
+        sendDiscordEmbed("💀 **Squad Eliminado**", "Todos os membros do squad morreram. Saindo da partida.", "e74c3c", null);
+        sairDaPartida();
+    } else if (brightness >= 50) {
+        estado.squadMorto = false;
+    }
+}
+
+// ==================== FUNÇÕES DE CONTROLE ====================
+
+function sairDaPartida() {
+    log("🚪 Iniciando sequência de saída...");
+    
+    // 1. Abre o Menu de Pausa
+    click(UI.xMenuPausa, UI.yMenuPausa);
+    sleep(2000);
+    
+    // 2. Clica em Sair
+    click(UI.xSair, UI.ySair);
+    sleep(1500);
+    
+    // 3. Confirma a Saída
+    click(UI.xConfirmar, UI.yConfirmar);
+    sleep(3000);
+    
+    estado.emPartida = false;
+    log("✅ Saída da partida concluída.");
+}
+
+// ==================== FUNÇÕES DE UTILITÁRIO ====================
+
+function sendDiscordEmbed(title, description, color, imageURL) {
+    if (!CONFIG.discordWebhook || CONFIG.discordWebhook === "COLOQUE_SUA_URL_WEBHOOK_AQUI") {
+        log("⚠️ Webhook não configurado. Mensagem não enviada.");
+        return;
+    }
+
+    const embed = {
+        title: title,
+        description: description,
+        color: parseInt(color.replace("#", "0x")),
+        timestamp: new Date().toISOString(),
+        footer: {
+            text: "Forlent Sky 🏴‍☠️ | AFK Farming System"
+        },
+        author: {
+            name: CONFIG.botName
+        }
+    };
+
+    if (imageURL) {
+        embed.thumbnail = {
+            url: imageURL
+        };
+    }
+
+    const payload = {
+        embeds: [embed]
+    };
+
+    try {
+        const jsonStr = JSON.stringify(payload);
+        const http = java.lang.Runtime.getRuntime().exec("curl -s -X POST -H \"Content-Type: application/json\" -d '" + jsonStr.replace(/'/g, "'\\''") + "' " + CONFIG.discordWebhook);
+        const exitCode = http.waitFor();
+        if (exitCode === 0) {
+            log("📡 Webhook enviado com sucesso.");
+        } else {
+            log("⚠️ Erro ao enviar Webhook. Código: " + exitCode);
+        }
+    } catch (e) {
+        log("❌ Falha crítica no envio do Webhook: " + e);
+    }
+}
+
+function log(msg) {
+    console.log(msg);
+    // Atualiza o log no GUI Principal se estiver aberto
+    if (activity.layout() && ui.logText) {
+        ui.logText.setText(ui.logText.getText() + "\n" + msg);
+        ui.logText.post(() => {
+            ui.logText.scrollTo(0, ui.logText.getHeight());
+        });
+    }
+}
+
+// ==================== INICIALIZAÇÃO ====================
+// Garante que o script inicie corretamente ao abrir o app
+auto.waitFor();
+toast.log("✅ Forlent Sky v5.1 Carregado com Sucesso!");}
+
+// ==================== FUNÇÕES DE UTILITÁRIO ====================
+
+function sendDiscordEmbed(title, description, color, imageURL) {
+    if (!CONFIG.discordWebhook || CONFIG.discordWebhook === "COLOQUE_SUA_URL_WEBHOOK_AQUI") {
+        log("⚠️ Webhook não configurado. Mensagem não enviada.");
+        return;
+    }
+
+    const embed = {
+        title: title,
+        description: description,
+        color: parseInt(color.replace("#", "0x")),
+        timestamp: new Date().toISOString(),
+        footer: {
+            text: "Forlent Sky 🏴‍☠️ | AFK Farming System"
+        },
+        author: {
+            name: CONFIG.botName
+        }
+    };
+
+    if (imageURL) {
+        embed.thumbnail = {
+            url: imageURL
+        };
+    }
+
+    const payload = {
+        embeds: [embed]
+    };
+
+    try {
+        // Usa a biblioteca HTTP nativa do Auto.js para enviar o Webhook
+        const http = http.post(CONFIG.discordWebhook, {
+            body: payload,
+            headers: {
+                "Content-Type": "application/json"
+            }
+        });
+        
+        if (http.statusCode === 204 || http.statusCode === 200) {
+            log("📡 Webhook enviado com sucesso.");
+        } else {
+            log("⚠️ Erro ao enviar Webhook. Status: " + http.statusCode);
+        }
+    } catch (e) {
+        log("❌ Falha crítica no envio do Webhook: " + e);
+    }
+}
+
+function log(msg) {
+    console.log(msg);
+    // Atualiza o log no GUI Principal se estiver aberto
+    // Nota: Como o GUI principal é finalizado ao iniciar o farm,
+    // este log serve para o console do Auto.js e para notificações futuras.
+    // Se você quiser um log flutuante, adicione um TextView no Overlay.
+    console.log("[Forlent Sky] " + msg);
+}
+
+// ==================== INICIALIZAÇÃO ====================
+// Garante que o script inicie corretamente ao abrir o app
+// auto.waitFor() aguarda a permissão de Acessibilidade
+auto.waitFor();
+toast.log("✅ Forlent Sky v5.1 Carregado com Sucesso!");
+
+// Verifica se a permissão de Acessibilidade está ativa
+if (!auto.bound()) {
+    toast.error("❌ Permissão de Acessibilidade não ativada!");
+    toast.log("Ative a Acessibilidade do Auto.js nas configurações do Android.");
+}
