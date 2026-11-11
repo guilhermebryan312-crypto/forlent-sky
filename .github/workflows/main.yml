@@ -1,4 +1,79 @@
-/*
+name: Build Forlent Sky APK
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Set up JDK 11
+      uses: actions/setup-java@v3
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
+      with:
+        # Garante que o SDK necessário para o Auto.js esteja disponível
+        sdk-tools: '33.0.2'
+
+    - name: Install Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Install Auto.js CLI
+      run: |
+        npm install -g autojs-cli
+        # Verifica se instalou
+        autojs --version
+
+    - name: Build APK
+      run: |
+        # O Auto.js CLI usa o arquivo 'autojs.config.js' ou o 'package.json'
+        # Vamos garantir que o projeto está pronto para o build
+        autojs build --release --no-minify
+        
+        # Se o build falhar por falta de keystore, usamos o debug (padrão)
+        # O APK final estará na pasta 'build/outputs/apk/'
+
+    - name: Find and Rename APK
+      run: |
+        # Encontra o arquivo APK gerado
+        find . -name "*.apk" -type f
+        # Renomeia para um nome amigável com a versão do commit
+        APK_PATH=$(find . -name "*.apk" -type f | head -n 1)
+        if [ -n "$APK_PATH" ]; then
+          mv "$APK_PATH" "ForlentSky-v5.1-GalaxyA07.apk"
+          echo "APK_PATH=ForlentSky-v5.1-GalaxyA07.apk" >> $GITHUB_ENV
+        else
+          echo "Nenhum APK encontrado!"
+          exit 1
+        fi
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Forlent-Sky-APK
+        path: ${{ env.APK_PATH }}
+        retention-days: 30
+
+    - name: Display Success Message
+      run: |
+        echo "✅ Build concluído com sucesso!"
+        echo "O APK 'ForlentSky-v5.1-GalaxyA07.apk' está disponível nos Artifacts."/*
  * Forlent Sky v5.1 "Galaxy A07 Optimized"
  * Professional AFK Farming System for Fortnite Mobile
  * Target: Samsung Galaxy A07 4G (720x1600)
