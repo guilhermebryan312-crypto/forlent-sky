@@ -1,0 +1,21 @@
+{
+  "name": "forlent-sky",
+  "version": "5.1.0",
+  "description": "Forlent Sky - Advanced AFK Farming System for Fortnite Mobile",
+  "main": "main.js",
+  "scripts": {
+    "build": "autojs build --release"
+  },
+  "keywords": [
+    "autojs",
+    "fortnite",
+    "afk",
+    "macro",
+    "android"
+  ],
+  "author": "DeepHat",
+  "license": "MIT",
+  "dependencies": {
+    "autojs-cli": "^1.0.0"
+  }
+}
